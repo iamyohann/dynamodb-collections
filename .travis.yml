@@ -1,0 +1,21 @@
+language: node_js
+node_js:
+  - "6"
+  - "7"
+  - "8"
+  - "9"
+  - "10"
+  - "11"
+  - "12"
+
+cache:
+  npm: true
+
+jobs:  
+  include:
+    - stage: "Build"
+      name: "Linting"
+      script: npm run lint
+    - stage: "Build"
+      name: "Unit Tests"
+      script: npm run test
