@@ -8,21 +8,31 @@
   ],
   "scripts": {
     "build": "tsc",
-    "prepare" : "npm run build",
-    "prepublishOnly" : "npm test && npm run lint",
-    "preversion" : "npm run format && npm run lint && npm run test",
-    "version" : "git add -A src",
-    "postversion" : "git push && git push --tags",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm test && npm run lint",
+    "preversion": "npm run format && npm run lint && npm run test",
+    "version": "git add -A src",
+    "postversion": "git push && git push --tags",
     "format": "prettier --write \"src/**/*.ts\" \"src/**/*.js\"",
     "lint": "tslint -p tsconfig.json",
-    "test": "jest --collect-coverage"
+    "test": "jest --collect-coverage",
+    "db:local": "java -Djava.library.path=./bin/DynamoDBLocal_lib -jar bin/DynamoDBLocal.jar"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/iamyohann/dynamodb-collections.git"
   },
   "author": "iamyohann",
-  "keywords": ["Dynamo", "DynamoDB", "AWS", "datastructures", "stack", "queue", "graph", "collections"],
+  "keywords": [
+    "Dynamo",
+    "DynamoDB",
+    "AWS",
+    "datastructures",
+    "stack",
+    "queue",
+    "graph",
+    "collections"
+  ],
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/iamyohann/dynamodb-collections/issues"
@@ -30,10 +40,16 @@
   "homepage": "https://github.com/iamyohann/dynamodb-collections#readme",
   "devDependencies": {
     "@types/jest": "^24.0.12",
+    "@types/node": "^11.13.9",
+    "@types/ramda": "^0.26.8",
+    "aws-sdk": "^2.448.0",
     "jest": "^24.7.1",
     "prettier": "^1.17.0",
+    "ramda": "^0.26.1",
     "ts-jest": "^24.0.2",
+    "ts-node": "^8.1.0",
     "tslint": "^5.16.0",
+    "tslint-config-airbnb": "^5.11.1",
     "tslint-config-prettier": "^1.18.0",
     "typescript": "^3.4.5"
   }
