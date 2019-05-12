@@ -2,6 +2,7 @@ import AWS, { AWSError, DynamoDB } from 'aws-sdk';
 import * as R from 'ramda';
 import { CreateTableOutput, CreateTableInput, DescribeTableInput, DescribeTableOutput } from 'aws-sdk/clients/dynamodb';
 import { PromiseResult } from 'aws-sdk/lib/request';
+import { Option, some, none } from 'fp-ts/lib/Option';
 
 const ddbclient = new AWS.DynamoDB({
   accessKeyId: 'foobar',
@@ -18,11 +19,11 @@ abstract class GenericCollection {
   protected defaultCreateTableParams = {
     AttributeDefinitions: [
       {
-        AttributeName: 'pk',
+        AttributeName: 'id',
         AttributeType: 'S',
       },
       {
-        AttributeName: 'meta_id',
+        AttributeName: 'meta_name',
         AttributeType: 'S',
       },
       {
@@ -34,21 +35,16 @@ abstract class GenericCollection {
     BillingMode: 'PAY_PER_REQUEST',
     KeySchema: [
       {
-        AttributeName: 'pk',
+        AttributeName: 'id',
         KeyType: 'HASH',
-      }
+      },
     ],
     SSESpecification: {
       Enabled: true,
     },
   };
 
-  constructor(
-    protected client: AWS.DynamoDB,
-    protected name: string,
-    protected tableName: string = 'collections',
-  ) {
-
+  constructor(protected client: AWS.DynamoDB, protected name: string, protected tableName: string = 'collections') {
     this.documentClient = new AWS.DynamoDB.DocumentClient(this.client.config);
   }
 
@@ -72,6 +68,14 @@ abstract class GenericCollection {
   }
 }
 
+interface StackItem<T> {
+  id: string;
+  meta_name: string;
+  meta_order: string;
+  tag: string;
+  value: T;
+}
+
 /* tslint:disable max-classes-per-file */
 class Stack<T> extends GenericCollection implements ICollection {
   public get(): T {
@@ -83,18 +87,18 @@ class Stack<T> extends GenericCollection implements ICollection {
       this.defaultCreateTableParams as CreateTableInput,
       super.tableAsParam(),
       {
-        GlobalSecondaryIndexes: [ 
+        GlobalSecondaryIndexes: [
           {
             IndexName: `${this.name}-sorted`,
             KeySchema: [
               {
-                AttributeName: 'meta_id',
+                AttributeName: 'meta_name',
                 KeyType: 'HASH',
               },
               {
                 AttributeName: 'meta_order',
                 KeyType: 'RANGE',
-              }
+              },
             ],
             Projection: {
               ProjectionType: 'KEYS_ONLY',
@@ -118,58 +122,72 @@ class Stack<T> extends GenericCollection implements ICollection {
 
   public async push(item: T, tag: string): Promise<void> {
     const ts = `${Date.now()}`;
-    await this.documentClient.put({
-      ...super.tableAsParam(),
-      Item: {
-        meta_id: `${this.name}`,
-        meta_order: `${ts}`,
-        pk: `${this.name}@${ts}`,
-        tag: `${tag}`,
-        value: item,
-      },
-    }).promise();
+    await this.documentClient
+      .put({
+        ...super.tableAsParam(),
+        Item: {
+          meta_name: `${this.name}`,
+          meta_order: `${ts}`,
+          id: `${this.name}@${ts}`,
+          tag: `${tag}`,
+          value: item,
+        },
+      })
+      .promise();
   }
 
-  public async top(): Promise<any> {
-    return await this.seek(false, 1);
+  public async top(): Promise<StackItem<T> | null> {
+    const res = await this.seek(false, 1);
+    return res.toNullable();
+  }
+
+  public async bottom(): Promise<StackItem<T> | null> {
+    const res = await this.seek(true, 1);
+    return res.toNullable();
   }
 
   public async pop(): Promise<any> {
-
+    const res = await this.seek(false, 1);
+    res.map(i => this._delete_id(i.id));
   }
 
-  private async _get_pk(pk: string): Promise<any> {
-    return await this.documentClient.get({
-      ...super.tableAsParam(),
-      Key: {
-        pk,
-      },
-    }).promise();
+  private async _get_id(id: string): Promise<StackItem<T>> {
+    const d = await this.documentClient
+      .get({
+        ...super.tableAsParam(),
+        Key: {
+          id,
+        },
+      })
+      .promise();
+
+    return d.Item as StackItem<T>;
   }
 
-  private async seek(forward: boolean = true, limit: number = 1): Promise<any> {
-    const res = await this.documentClient.query({
-      ...super.tableAsParam(),
-      ExpressionAttributeValues: {
-        ':pk': this.name,
-        ':sk': `${Date.now()}`,
-      },
-      IndexName: `${this.name}-sorted`,
-      KeyConditionExpression: 'meta_id = :pk and meta_order <= :sk',
-      Limit: limit,
-      ReturnConsumedCapacity: 'TOTAL',
-      ScanIndexForward: forward,
-    }).promise();
+  private async _delete_id(id: string): Promise<void> {
+    console.log('>>> delete_id', id);
+  }
 
-    if (!res.Items) return [];
+  private async seek(forward: boolean = true, limit: number = 1): Promise<Option<StackItem<T>>> {
+    const res = await this.documentClient
+      .query({
+        ...super.tableAsParam(),
+        ExpressionAttributeValues: {
+          ':id': this.name,
+          ':sk': `${Date.now()}`,
+        },
+        IndexName: `${this.name}-sorted`,
+        KeyConditionExpression: 'meta_name = :id and meta_order <= :sk',
+        Limit: limit,
+        ReturnConsumedCapacity: 'TOTAL',
+        ScanIndexForward: forward,
+      })
+      .promise();
 
-    if (res.Items && res.Items.length < 1) {
-      return [];
-    }
+    if (!res.Items || res.Items.length < 1) return none;
 
-    const item = res.Items[0];
-
-    return [await this._get_pk(item.pk)];
+    const item = res.Items[0] as StackItem<T>;
+    return some(await this._get_id(item.id));
   }
 }
 
@@ -184,16 +202,15 @@ const s = new Stack<number>(ddbclient, 'myStack');
   //   console.log(err);
   // }
 
-
   // console.log(await s.initialize());
   // console.log(await s.details());
-
 
   // for (let i = 0; i < 15; ++i) {
   //   await s.push(i, `MyTag-${i}`);
   // }
 
   console.log(await s.top());
+  console.log(await s.bottom());
   // console.log(await s.query('Item-1'));
 })();
 

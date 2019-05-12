@@ -16,6 +16,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"src/**/*.js\"",
     "lint": "tslint -p tsconfig.json",
     "test": "jest --collect-coverage",
+    "test:watch": "jest --watch --collect-coverage",
     "db:local": "java -Djava.library.path=./bin/DynamoDBLocal_lib -jar bin/DynamoDBLocal.jar"
   },
   "repository": {
@@ -43,6 +44,7 @@
     "@types/node": "^11.13.9",
     "@types/ramda": "^0.26.8",
     "aws-sdk": "^2.448.0",
+    "fp-ts": "^1.17.3",
     "jest": "^24.7.1",
     "prettier": "^1.17.0",
     "ramda": "^0.26.1",
